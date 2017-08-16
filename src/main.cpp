@@ -90,8 +90,30 @@ int main() {
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
+	  // To m/s from mph
           double v = j[1]["speed"];
+	  v *= 1.609e3/3600;
 
+          /*
+          * Calculate steering angle and throttle using MPC.
+          *
+          * Both are in between [-1, 1].
+          *
+          */
+          // Get input
+          double steer_value = j[1]["steering_angle"];
+	  // steer value is swapped
+	  steer_value *= -1;
+          double throttle_value = j[1]["throttle"];
+
+          // Current state propagated for latency
+          double latency = 0.1;
+          const double Lf = 2.67;
+          px = px + v * cos(psi) * latency;
+          py = py + v * sin(psi) * latency;
+          v = v + throttle_value * latency;
+          psi = psi + v * steer_value / Lf * latency;
+	  
           // Compute the waypoints in the car reference frame
           Eigen::VectorXd waypoints_x = Eigen::VectorXd(ptsx.size());
           Eigen::VectorXd waypoints_y = Eigen::VectorXd(ptsx.size());
@@ -105,17 +127,6 @@ int main() {
           // Compute the polynom fit (3rd degree)
           auto coeffs = polyfit(waypoints_x, waypoints_y, 3);
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          // Get input
-          double steer_value = j[1]["steering_angle"];
-          double throttle_value = j[1]["throttle"];
-
-          // Current state
           // CTE is the polynom value at x = 0 as we computed the fit in the car reference frame
           double cte = polyeval(coeffs, 0);
           // error on psi is the atan of the derivative or the polynom, which is ~ coeff[1]
@@ -127,7 +138,7 @@ int main() {
           auto vars = mpc.Solve(state, coeffs);
 
           // first two values are the actuator values
-          steer_value = -vars[0] / deg2rad(25);
+          steer_value = vars[0] / deg2rad(25);
           throttle_value = vars[1];
 
           json msgJson;

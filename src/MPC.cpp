@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 10;
-double dt = 0.1;
+size_t N = 5;
+double dt = 0.3;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -22,20 +22,20 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 // Both the reference cross track and orientation errors are 0.
-// The reference velocity is set to 25 mph.
-double ref_v = 20;
+// The reference velocity is set to 50 mph.
+double ref_v = 40*1.609e3/3600;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
 // when one variable starts and another ends to make our lifes easier.
-size_t x_start = 0;
-size_t y_start = x_start + N;
-size_t psi_start = y_start + N;
-size_t v_start = psi_start + N;
-size_t cte_start = v_start + N;
-size_t epsi_start = cte_start + N;
-size_t delta_start = epsi_start + N;
-size_t a_start = delta_start + N - 1;
+const size_t x_start = 0;
+const size_t y_start = x_start + N;
+const size_t psi_start = y_start + N;
+const size_t v_start = psi_start + N;
+const size_t cte_start = v_start + N;
+const size_t epsi_start = cte_start + N;
+const size_t delta_start = epsi_start + N;
+const size_t a_start = delta_start + N - 1;
 
 
 class FG_eval {
@@ -46,7 +46,7 @@ class FG_eval {
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
-    // TODO: implement MPC
+    // : implement MPC
     // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
@@ -56,24 +56,22 @@ class FG_eval {
 
     // First part of the cost is based on the reference state
     for (int t=0; t<N; ++t) {
-      fg[0] += 3000*CppAD::pow(vars[cte_start+t], 2);      // penalise CTE
-      fg[0] += 3000*CppAD::pow(vars[epsi_start+t], 2);     // penalise misalignment
-      fg[0] += 0.5*CppAD::pow(vars[v_start+t]-ref_v, 2);  // penalise speed error
+      fg[0] += 1000*CppAD::pow(vars[cte_start+t], 2);      // penalise CTE
+      fg[0] += 100*CppAD::pow(vars[epsi_start+t], 2);     // penalise misalignment
+      fg[0] += 0.3*CppAD::pow(vars[v_start+t]-ref_v, 2);  // penalise speed error
     }
 
     // Minimize the use of actuators to avoid large commanding
     for (int t=0; t<N-1; t++) {
-      fg[0] += 5*CppAD::pow(vars[delta_start+t], 2);    // penalise large wheel command
-      fg[0] += 5*CppAD::pow(vars[a_start+t], 2);        // penalise large accelerations
+      fg[0] += 0.01*CppAD::pow(vars[delta_start+t], 2);    // penalise large wheel command
+      fg[0] += 0.01*CppAD::pow(vars[a_start+t], 2);        // penalise large accelerations
 
-      // try adding penalty for speed + steer
-      fg[0] += 150*CppAD::pow(vars[delta_start + t] * vars[v_start+t], 2);
     }
 
     // Minimise actuator change to avoid large back and forth commanding
     for (int t=0; t<N-2; t++) {
-      fg[0] += 200*CppAD::pow(vars[delta_start+t+1]-vars[delta_start+t], 2);   // large wheel command change
-      fg[0] += 10*CppAD::pow(vars[a_start+t+1]-vars[a_start+t], 2);           // large acceleration change
+      fg[0] += 1*CppAD::pow(vars[delta_start+t+1]-vars[delta_start+t], 2);   // large wheel command change
+      fg[0] += 0.01*CppAD::pow(vars[a_start+t+1]-vars[a_start+t], 2);           // large acceleration change
     }
 
 
@@ -94,31 +92,23 @@ class FG_eval {
     // model of the car
     for (int t = 1; t < N; t++) {
       // The state at time t+1 .
-      AD<double> x1 = vars[x_start + t];
-      AD<double> y1 = vars[y_start + t];
-      AD<double> psi1 = vars[psi_start + t];
-      AD<double> v1 = vars[v_start + t];
-      AD<double> cte1 = vars[cte_start + t];
-      AD<double> epsi1 = vars[epsi_start + t];
+      const AD<double> x1 = vars[x_start + t];
+      const AD<double> y1 = vars[y_start + t];
+      const AD<double> psi1 = vars[psi_start + t];
+      const AD<double> v1 = vars[v_start + t];
+      const AD<double> cte1 = vars[cte_start + t];
+      const AD<double> epsi1 = vars[epsi_start + t];
 
       // The state at time t.
-      AD<double> x0 = vars[x_start + t - 1];
-      AD<double> y0 = vars[y_start + t - 1];
-      AD<double> psi0 = vars[psi_start + t - 1];
-      AD<double> v0 = vars[v_start + t - 1];
-      AD<double> cte0 = vars[cte_start + t - 1];
-      AD<double> epsi0 = vars[epsi_start + t - 1];
+      const AD<double> x0 = vars[x_start + t - 1];
+      const AD<double> y0 = vars[y_start + t - 1];
+      const AD<double> psi0 = vars[psi_start + t - 1];
+      const AD<double> v0 = vars[v_start + t - 1];
+      const AD<double> cte0 = vars[cte_start + t - 1];
+      const AD<double> epsi0 = vars[epsi_start + t - 1];
 
-      AD<double> delta0 ;
-      AD<double> a0;
-      if (t == 1) {
-        // Only consider the actuation at time t.
-        delta0 = vars[delta_start + t - 1];
-        a0 = vars[a_start + t - 1];
-      } else {
-        delta0 = vars[delta_start + t - 2];
-        a0 = vars[a_start + t - 2];
-      }
+      const AD<double> delta0 = vars[delta_start + t - 1];
+      const AD<double> a0 = vars[a_start + t - 1];
       
       // equations for the model:
       // x_[t+1] = x[t] + v[t] * cos(psi[t]) * dt
@@ -127,7 +117,7 @@ class FG_eval {
       // v_[t+1] = v[t] + a[t] * dt
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-      fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
+      fg[1 + psi_start + t] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
       fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
        
       // Equations for the errors
@@ -136,9 +126,9 @@ class FG_eval {
       AD<double> f0 = coeffs[0] + coeffs[1]  * x0 + coeffs[2] * pow(x0,2) + coeffs[3] * pow(x0,3);
       AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 *coeffs[3]* pow(x0, 2));
       fg[1 + cte_start + t] =
-              cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+              cte1 - ((f0 - y0) - (v0 * CppAD::sin(epsi0) * dt));
       fg[1 + epsi_start + t] =
-              epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+              epsi1 - ((psi0 - psides0) - v0 * delta0 / Lf * dt);
     }
 
   }
@@ -156,12 +146,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
   // initial state in variables
-  double x = state[0];
-  double y = state[1];
-  double psi = state[2];
-  double v = state[3];
-  double cte = state[4];
-  double epsi = state[5];
+  const double x = state[0];
+  const double y = state[1];
+  const double psi = state[2];
+  const double v = state[3];
+  const double cte = state[4];
+  const double epsi = state[5];
 
   // Done: Set the number of model variables (includes both states and inputs).
   // For example: If the state is a 4 element vector, the actuators is a 2
@@ -181,12 +171,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   }
 
   // Initial value of the variables
-  vars[x_start] = x;
-  vars[y_start] = y;
-  vars[psi_start] = psi;
-  vars[v_start] = v;
-  vars[cte_start] = cte;
-  vars[epsi_start] = epsi;
+  //vars[x_start] = x;
+  //vars[y_start] = y;
+  //vars[psi_start] = psi;
+  //vars[v_start] = v;
+  //vars[cte_start] = cte;
+  //vars[epsi_start] = epsi;
   
   // Lower and upper limits vor x 
   Dvector vars_lowerbound(n_vars);
@@ -209,7 +199,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Acceleration/decceleration upper and lower limits.
   for (int i = a_start; i < n_vars; i++) {
-    double max_a = 2.;
+    double max_a = 1.;
     vars_lowerbound[i] = -max_a;
     vars_upperbound[i] =  max_a;
   }
